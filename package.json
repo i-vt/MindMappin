@@ -1,0 +1,20 @@
+{
+  "name": "blumind-web",
+  "version": "1.0.0",
+  "description": "A lightweight, self-hosted web mind-mapping tool. An open alternative to the discontinued Blumind desktop app.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "pdfkit": "^0.15.0",
+    "sharp": "^0.33.4"
+  }
+}

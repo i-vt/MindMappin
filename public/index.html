@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Blumind Web — mind maps, trees & org charts</title>
+    <script>
+      // Apply saved appearance before first paint (default: dark)
+      try {
+        var m = localStorage.getItem("blumind.mode");
+        document.documentElement.dataset.mode = m === "light" ? "light" : "dark";
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314303A'/%3E%3Ccircle cx='10' cy='16' r='4' fill='%23FF7A4D'/%3E%3Ccircle cx='23' cy='9' r='3' fill='%23EAF2F4'/%3E%3Ccircle cx='23' cy='23' r='3' fill='%23EAF2F4'/%3E%3Cpath d='M13 14.5 20 10M13 17.5 20 22' stroke='%23EAF2F4' stroke-width='1.6'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar">
+        <div class="brand" title="Blumind Web">
+          <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="7" fill="#14303A" />
+            <circle cx="10" cy="16" r="4" fill="#FF7A4D" />
+            <circle cx="23" cy="9" r="3" fill="#EAF2F4" />
+            <circle cx="23" cy="23" r="3" fill="#EAF2F4" />
+            <path d="M13 14.5 20 10M13 17.5 20 22" stroke="#EAF2F4" stroke-width="1.6" />
+          </svg>
+          <span class="word">Blumind<b>Web</b></span>
+        </div>
+
+        <nav id="tabs" aria-label="Open maps"></nav>
+        <button id="tab-add" class="icon-btn" title="New map (adds a tab)">+</button>
+
+        <div class="spacer"></div>
+
+        <div id="toolbar">
+          <div class="group">
+            <span class="eyebrow">Map</span>
+            <div class="row">
+              <button class="tbtn" id="btn-open">Open</button>
+              <button class="tbtn" id="btn-save">Save</button>
+              <button class="tbtn" id="btn-import">Import</button>
+              <div class="menu">
+                <button class="tbtn" id="btn-export" aria-haspopup="true">Export ▾</button>
+                <div class="menu-list" id="export-menu" hidden>
+                  <button data-fmt="png">PNG image</button>
+                  <button data-fmt="jpeg">JPEG image</button>
+                  <button data-fmt="svg">SVG vector</button>
+                  <button data-fmt="pdf">PDF document</button>
+                  <div class="sep"></div>
+                  <button data-fmt="gif">GIF image</button>
+                  <button data-fmt="bmp">BMP image</button>
+                  <button data-fmt="tiff">TIFF image</button>
+                  <div class="sep"></div>
+                  <button data-fmt="txt">Text outline (.txt)</button>
+                  <button data-fmt="csv">CSV table (.csv)</button>
+                  <button data-fmt="mm">FreeMind (.mm)</button>
+                  <div class="sep"></div>
+                  <button data-fmt="json">Map file (.json)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="group">
+            <span class="eyebrow">Layout</span>
+            <div class="segmented" id="layout-seg" role="tablist">
+              <button data-layout="mindmap" title="Mind map">Mind map</button>
+              <button data-layout="tree" title="Tree diagram">Tree</button>
+              <button data-layout="org" title="Org chart">Org</button>
+              <button data-layout="logic" title="Logic diagram">Logic</button>
+            </div>
+          </div>
+
+          <div class="group">
+            <span class="eyebrow">Theme</span>
+            <select id="theme-select" class="select"></select>
+          </div>
+
+          <div class="group">
+            <span class="eyebrow">View</span>
+            <div class="row">
+              <button class="tbtn" id="btn-fit" title="Fit map to screen (0)">Fit</button>
+              <button class="tbtn" id="btn-expand" title="Expand all branches">Expand</button>
+              <button class="tbtn" id="btn-collapse" title="Collapse all branches">Collapse</button>
+              <button class="icon-btn" id="btn-zoom-out" title="Zoom out (−)">−</button>
+              <span id="zoom-label" class="zoom">100%</span>
+              <button class="icon-btn" id="btn-zoom-in" title="Zoom in (+)">+</button>
+              <button class="tbtn" id="btn-search" title="Find & replace (Ctrl+F)">Find</button>
+              <button class="tbtn" id="btn-print" title="Print map">Print</button>
+              <button class="icon-btn" id="btn-mode" title="Switch to light mode">☀</button>
+              <button class="tbtn" id="btn-full" title="Full screen">Full screen</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div id="searchbar" hidden>
+        <input id="find-input" type="text" placeholder="Find topics…" autocomplete="off" />
+        <span id="find-count" class="muted">0 matches</span>
+        <button class="tbtn" id="find-prev">Prev</button>
+        <button class="tbtn" id="find-next">Next</button>
+        <span class="divider"></span>
+        <input id="replace-input" type="text" placeholder="Replace with…" autocomplete="off" />
+        <button class="tbtn" id="replace-all">Replace all</button>
+        <label class="check"><input type="checkbox" id="find-case" /> Case</label>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="find-close" title="Close">×</button>
+      </div>
+
+      <main id="stage">
+        <div id="canvas"></div>
+
+        <aside id="inspector">
+          <div id="insp-empty" class="insp-empty">
+            <h2>Nothing selected</h2>
+            <p>Click a topic to edit it. On the canvas: <b>Tab</b> adds a child, <b>Enter</b> adds a
+              sibling, and double-click renames. Press <b>Tab</b> now on the central topic to grow
+              your first branch.</p>
+          </div>
+
+          <div id="insp-body" hidden>
+            <div class="insp-actions">
+              <button class="tbtn" data-act="child">+ Child</button>
+              <button class="tbtn" data-act="sibling">+ Sibling</button>
+              <button class="tbtn" data-act="fold" id="act-fold">Fold</button>
+              <button class="tbtn danger" data-act="delete" id="act-delete">Delete</button>
+            </div>
+
+            <label class="field">
+              <span>Topic text</span>
+              <textarea id="insp-text" rows="2" placeholder="Topic…"></textarea>
+            </label>
+
+            <div class="field">
+              <span>Icon</span>
+              <div class="icon-grid" id="insp-icons"></div>
+            </div>
+
+            <div class="field">
+              <span>Color</span>
+              <div class="swatches" id="insp-colors"></div>
+            </div>
+
+            <div class="field">
+              <span class="rowspan">
+                <label class="check"><input type="checkbox" id="insp-prog-on" /> Progress</label>
+                <span id="insp-prog-val" class="muted">—</span>
+              </span>
+              <input type="range" id="insp-prog" min="0" max="100" step="5" value="0" disabled />
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <span class="lbl">Note</span>
+                <span class="md-tabs">
+                  <button type="button" class="md-tab active" data-note-tab="write">Write</button>
+                  <button type="button" class="md-tab" data-note-tab="preview">Preview</button>
+                </span>
+              </div>
+              <textarea id="insp-note" rows="4"
+                placeholder="Supports Markdown — # headings, **bold**, lists, - [ ] tasks, `code`, tables, links…"></textarea>
+              <div id="insp-note-preview" class="md-preview markdown-body" hidden></div>
+              <div class="md-hint">Markdown supported · click the 📝 on a topic to preview it on the canvas</div>
+            </div>
+
+            <label class="field">
+              <span>Link</span>
+              <input type="url" id="insp-link" placeholder="https://…" />
+            </label>
+
+            <div class="field">
+              <span>Connections</span>
+              <div id="insp-links" class="links-list"></div>
+              <button class="tbtn full" id="btn-connect">Connect to another topic…</button>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <footer id="statusbar">
+        <span class="hint">Tab: child · Enter: sibling · Double-click: rename · Space: fold ·
+          Drag: pan · Scroll: zoom</span>
+        <div class="spacer"></div>
+        <span id="stat-nodes">1 topic</span>
+        <span class="dot">·</span>
+        <span id="stat-layout">Mind map</span>
+        <span class="dot">·</span>
+        <span id="stat-zoom">100%</span>
+      </footer>
+    </div>
+
+    <dialog id="open-dialog">
+      <form method="dialog">
+        <div class="dlg-head">
+          <h2>Open a saved map</h2>
+          <button class="icon-btn" value="cancel" title="Close">×</button>
+        </div>
+        <div id="open-list" class="open-list"><p class="muted">Loading…</p></div>
+      </form>
+    </dialog>
+
+    <input type="file" id="file-input" accept=".json,.mm,application/json,text/xml" hidden />
+    <div id="toast" hidden></div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

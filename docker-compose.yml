@@ -1,0 +1,12 @@
+services:
+  blumind:
+    build: .
+    container_name: blumind-web
+    ports:
+      - "3000:3000"
+    volumes:
+      - blumind-data:/data
+    restart: unless-stopped
+
+volumes:
+  blumind-data:
