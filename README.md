@@ -6,7 +6,7 @@ zero-dependency vanilla-JS front end. It keeps Blumind's "do one thing well" spi
 things the original never had: it runs in any browser, stores maps server-side, and has a real
 undo/redo history.
 
-![layouts: mind map · tree · org chart · logic](https://img.shields.io/badge/layouts-mindmap%20%C2%B7%20tree%20%C2%B7%20org%20%C2%B7%20logic-14303A)
+<img width="2542" height="1918" alt="image" src="https://github.com/user-attachments/assets/9d5587ef-9853-4fe6-99c5-99d411a0819f" />
 
 ## Features
 
