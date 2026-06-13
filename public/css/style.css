@@ -831,46 +831,80 @@ input[type="range"] {
   font-style: italic;
 }
 
-/* Canvas note popover (rendered markdown) */
-.mv-notepop {
-  position: absolute;
-  z-index: 30;
-  width: min(340px, 80%);
-  max-height: 280px;
-  overflow: auto;
+/* Canvas note modal (rendered markdown) */
+.mv-note-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 26, 33, 0.5);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+.mv-note-overlay.is-open {
+  opacity: 1;
+}
+.mv-note-overlay[hidden] {
+  display: none;
+}
+.mv-note-modal {
+  width: min(640px, 100%);
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: var(--shadow);
-  padding: 12px 14px;
+  overflow: hidden;
+  transform: translateY(8px) scale(0.985);
+  transition: transform 0.16s ease;
 }
-.mv-notepop-head {
+.mv-note-overlay.is-open .mv-note-modal {
+  transform: none;
+}
+.mv-note-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
 }
-.mv-notepop-head .npt {
+.mv-note-head .npt {
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.mv-notepop-head button {
+.mv-note-close {
   border: 0;
   background: transparent;
   color: var(--text-dim);
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 2px;
-  border-radius: 5px;
+  padding: 2px 7px;
+  border-radius: 6px;
 }
-.mv-notepop-head button:hover {
+.mv-note-close:hover {
   background: var(--panel-2);
   color: var(--text);
+}
+.mv-note-body {
+  padding: 16px 18px 18px;
+  overflow: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mv-note-overlay,
+  .mv-note-modal {
+    transition: none;
+  }
 }
 
 /* ---------- Status bar ---------- */

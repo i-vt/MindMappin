@@ -54,12 +54,32 @@ export class MapView {
     this.editor.spellcheck = false;
     this.editor.style.display = "none";
     this.host.append(this.editor);
-    this.notePop = document.createElement("div");
-    this.notePop.className = "mv-notepop";
-    this.notePop.hidden = true;
-    this.notePop.addEventListener("pointerdown", (e) => e.stopPropagation());
-    this.notePop.addEventListener("wheel", (e) => e.stopPropagation());
-    this.host.append(this.notePop);
+    // Note modal: dims the app, opens centered, closes on backdrop click or Esc.
+    this.noteOverlay = document.createElement("div");
+    this.noteOverlay.className = "mv-note-overlay";
+    this.noteOverlay.hidden = true;
+    this.noteOverlay.tabIndex = -1;
+    this.noteOverlay.innerHTML =
+      '<div class="mv-note-modal" role="dialog" aria-modal="true" aria-label="Topic note">' +
+      '<div class="mv-note-head"><span class="npt">Note</span>' +
+      '<button type="button" class="mv-note-close" aria-label="Close note">×</button></div>' +
+      '<div class="mv-note-body markdown-body"></div>' +
+      "</div>";
+    this.noteBody = this.noteOverlay.querySelector(".mv-note-body");
+    this.noteOverlay.addEventListener("pointerdown", (e) => {
+      if (e.target === this.noteOverlay) this._hideNote(); // click outside the card
+    });
+    this.noteOverlay.querySelector(".mv-note-close").addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._hideNote();
+    });
+    this.noteOverlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        this._hideNote();
+      }
+    });
+    document.body.append(this.noteOverlay);
   }
 
   _bindEvents() {
@@ -582,41 +602,112 @@ export class MapView {
   }
 
   _renderCrossLinks(theme) {
+    const links = this.doc.links || [];
+    if (!links.length) return;
+
+    // Point where a curve should meet box `b`, aimed at (tx,ty). The +2 lets the
+    // dashed line start just clear of the node border instead of under it.
     const edgePoint = (b, tx, ty) => {
       const dx = tx - b.x;
       const dy = ty - b.y;
       if (!dx && !dy) return { x: b.x, y: b.y };
-      const sx = dx === 0 ? Infinity : b.w / 2 / Math.abs(dx);
-      const sy = dy === 0 ? Infinity : b.h / 2 / Math.abs(dy);
+      const sx = dx === 0 ? Infinity : (b.w / 2 + 2) / Math.abs(dx);
+      const sy = dy === 0 ? Infinity : (b.h / 2 + 2) / Math.abs(dy);
       const s = Math.min(sx, sy);
       return { x: b.x + dx * s, y: b.y + dy * s };
     };
-    for (const link of this.doc.links || []) {
-      const fb = this.lastPos.get(link.from);
-      const tb = this.lastPos.get(link.to);
-      if (!fb || !tb) continue;
-      const a = edgePoint(fb, tb.x, tb.y);
-      const b = edgePoint(tb, fb.x, fb.y);
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2;
-      const nx = -(b.y - a.y);
-      const ny = b.x - a.x;
-      const len = Math.hypot(nx, ny) || 1;
-      const off = Math.min(40, len * 0.16);
-      const cx = mx + (nx / len) * off;
-      const cy = my + (ny / len) * off;
+
+    // Group links by the unordered pair of topics they join, so several links
+    // between (or back and forth across) the same two nodes fan apart instead of
+    // landing on top of one another.
+    const groups = new Map();
+    for (const link of links) {
+      const key =
+        link.from < link.to ? link.from + "\u0000" + link.to : link.to + "\u0000" + link.from;
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = []));
+      g.push(link);
+    }
+
+    const SEP = 34; // perpendicular gap between fanned curves sharing a pair
+    const items = [];
+
+    for (const group of groups.values()) {
+      group.sort((p, q) =>
+        p.from === q.from ? (p.to < q.to ? -1 : 1) : p.from < q.from ? -1 : 1
+      );
+      const n = group.length;
+      group.forEach((link, k) => {
+        if (link.from === link.to) return; // ignore self-links
+        const fb = this.lastPos.get(link.from);
+        const tb = this.lastPos.get(link.to);
+        if (!fb || !tb) return;
+
+        // Stable normal from a direction-independent axis (min-id -> max-id).
+        const ax = tb.x - fb.x;
+        const ay = tb.y - fb.y;
+        const len = Math.hypot(ax, ay) || 1;
+        const nx = -ay / len;
+        const ny = ax / len;
+
+        // One link gets a gentle bow; multiples fan symmetrically about the axis.
+        const off = n === 1 ? Math.min(48, Math.max(24, len * 0.16)) : (k - (n - 1) / 2) * SEP;
+        const c = { x: (fb.x + tb.x) / 2 + nx * off, y: (fb.y + tb.y) / 2 + ny * off };
+        items.push({ link, fb, tb, c });
+      });
+    }
+
+    // Nudge labels that still overlap (across different pairs) apart along their
+    // axis of least overlap. Curve control points move with them so each label
+    // stays sitting on its own line.
+    const labelled = items.filter((it) => it.link.label);
+    for (const it of labelled) {
+      it.lw = this._measure(it.link.label) + 14;
+      it.lh = 18;
+    }
+    for (let pass = 0; pass < 6; pass++) {
+      let moved = false;
+      for (let i = 0; i < labelled.length; i++) {
+        for (let j = i + 1; j < labelled.length; j++) {
+          const A = labelled[i];
+          const B = labelled[j];
+          const ox = (A.lw + B.lw) / 2 + 4 - Math.abs(A.c.x - B.c.x);
+          const oy = (A.lh + B.lh) / 2 + 4 - Math.abs(A.c.y - B.c.y);
+          if (ox > 0 && oy > 0) {
+            moved = true;
+            if (oy <= ox) {
+              const push = (oy / 2) * (A.c.y <= B.c.y ? 1 : -1);
+              A.c.y -= push;
+              B.c.y += push;
+            } else {
+              const push = (ox / 2) * (A.c.x <= B.c.x ? 1 : -1);
+              A.c.x -= push;
+              B.c.x += push;
+            }
+          }
+        }
+      }
+      if (!moved) break;
+    }
+
+    for (const it of items) {
+      const { link, fb, tb, c } = it;
+      const a = edgePoint(fb, c.x, c.y);
+      const b = edgePoint(tb, c.x, c.y);
+      const ang = Math.atan2(b.y - c.y, b.x - c.x); // curve tangent at the arrow end
+
       const g = el("g", { class: "mv-xlink", style: "cursor:pointer" });
       g.appendChild(
         el("path", {
-          d: `M${a.x},${a.y} Q${cx},${cy} ${b.x},${b.y}`,
+          d: `M${a.x},${a.y} Q${c.x},${c.y} ${b.x},${b.y}`,
           fill: "none",
           stroke: theme.link,
           "stroke-width": 1.6,
           "stroke-dasharray": "5 4",
+          "stroke-linecap": "round",
         })
       );
-      const ang = Math.atan2(b.y - cy, b.x - cx);
-      const ah = 6;
+      const ah = 7;
       g.appendChild(
         el("path", {
           d: `M${b.x},${b.y} L${b.x - ah * Math.cos(ang - 0.4)},${
@@ -626,11 +717,11 @@ export class MapView {
         })
       );
       if (link.label) {
-        const tw = this._measure(link.label) + 12;
+        const tw = it.lw != null ? it.lw : this._measure(link.label) + 14;
         g.appendChild(
           el("rect", {
-            x: cx - tw / 2,
-            y: cy - 9,
+            x: c.x - tw / 2,
+            y: c.y - 9,
             width: tw,
             height: 16,
             rx: 8,
@@ -643,8 +734,8 @@ export class MapView {
           el(
             "text",
             {
-              x: cx,
-              y: cy,
+              x: c.x,
+              y: c.y,
               "font-size": 10.5,
               fill: theme.link,
               "text-anchor": "middle",
@@ -801,7 +892,7 @@ export class MapView {
         t.addEventListener("pointerdown", (e) => e.stopPropagation());
         t.addEventListener("click", (e) => {
           e.stopPropagation();
-          this._showNote(n, t);
+          this._showNote(n);
         });
         g.appendChild(t);
         bx -= 16;
@@ -924,32 +1015,20 @@ export class MapView {
     if (s.x < m || s.x > r.width - m || s.y < m || s.y > r.height - m) this._centerNode(id);
   }
 
-  // ---------- Note popover (rendered markdown) ----------
-  _showNote(node, badgeEl) {
-    const r = badgeEl.getBoundingClientRect();
-    const hostR = this.host.getBoundingClientRect();
-    this.notePop.innerHTML =
-      '<div class="mv-notepop-head"><span class="npt">Note</span>' +
-      '<button type="button" aria-label="Close">×</button></div>' +
-      '<div class="markdown-body">' +
-      renderMarkdown(node.note) +
-      "</div>";
-    this.notePop.querySelector("button").addEventListener("click", (e) => {
-      e.stopPropagation();
-      this._hideNote();
-    });
-    this.notePop.hidden = false;
-    const popW = this.notePop.offsetWidth;
-    const popH = this.notePop.offsetHeight;
-    let left = r.left - hostR.left + r.width / 2 - popW / 2;
-    left = Math.max(8, Math.min(left, hostR.width - popW - 8));
-    let top = r.bottom - hostR.top + 8;
-    if (top + popH > hostR.height - 8) top = Math.max(8, r.top - hostR.top - popH - 8);
-    this.notePop.style.left = left + "px";
-    this.notePop.style.top = top + "px";
+  // ---------- Note modal (rendered markdown) ----------
+  _showNote(node) {
+    if (!node || !node.note) return;
+    this.noteBody.innerHTML = renderMarkdown(node.note);
+    this.noteBody.scrollTop = 0;
+    this.noteOverlay.hidden = false;
+    requestAnimationFrame(() => this.noteOverlay.classList.add("is-open"));
+    this.noteOverlay.focus({ preventScroll: true });
   }
   _hideNote() {
-    if (this.notePop) this.notePop.hidden = true;
+    if (!this.noteOverlay || this.noteOverlay.hidden) return;
+    this.noteOverlay.classList.remove("is-open");
+    this.noteOverlay.hidden = true;
+    this.noteBody.innerHTML = "";
   }
 
   // ---------- Inline editor ----------
