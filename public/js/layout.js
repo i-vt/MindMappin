@@ -22,7 +22,10 @@ export function computeLayout(doc, getSize) {
 
   // Pack a forest along a "cross" axis using each node's cross-size; parents
   // are centered over their visible children. Returns id -> { cross, depth }.
-  function tidy(roots, crossSizeOf, gapCross) {
+  // With opts.grid, a large run of leaf-only siblings is packed into a grid
+  // (several rows) instead of one very wide row.
+  function tidy(roots, crossSizeOf, gapCross, opts = {}) {
+    const grid = opts.grid;
     const out = new Map();
     let cursor = 0;
     function walk(n, depth) {
@@ -30,6 +33,21 @@ export function computeLayout(doc, getSize) {
       if (!kids.length) {
         const c = cursor + crossSizeOf(n) / 2;
         cursor += crossSizeOf(n) + gapCross;
+        out.set(n.id, { cross: c, depth });
+        return c;
+      }
+      if (grid && kids.length >= grid.min && kids.every((k) => vis(k).length === 0)) {
+        const cols = Math.max(1, Math.min(kids.length, grid.colsFor(kids.length)));
+        let colW = 0;
+        for (const k of kids) colW = Math.max(colW, crossSizeOf(k));
+        const start = cursor;
+        const colCenter = [];
+        for (let i = 0; i < cols; i++) colCenter[i] = start + i * (colW + gapCross) + colW / 2;
+        cursor = start + cols * (colW + gapCross);
+        kids.forEach((k, i) => {
+          out.set(k.id, { cross: colCenter[i % cols], depth: depth + 1 + Math.floor(i / cols) });
+        });
+        const c = (colCenter[0] + colCenter[cols - 1]) / 2;
         out.set(n.id, { cross: c, depth });
         return c;
       }
@@ -64,8 +82,9 @@ export function computeLayout(doc, getSize) {
   const GAPX = 52; // gap between root and first branch (mind map)
 
   if (layout === "tree" || layout === "org") {
-    const tp = tidy([root], W, 20); // pack horizontally by width
-    const bandY = bandCenters(tp, H, 58); // stack downward by height
+    const grid = { min: 6, colsFor: (k) => Math.ceil(Math.sqrt(k)) };
+    const tp = tidy([root], W, 24, { grid }); // pack horizontally by width
+    const bandY = bandCenters(tp, H, 56); // stack downward by height
     const shift = tp.get(root.id).cross; // anchor root at x = 0
     for (const [id, p] of tp) {
       const n = node(id);

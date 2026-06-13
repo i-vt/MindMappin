@@ -24,8 +24,9 @@ Everything Blumind did, on the web:
 - **Find & replace** across all topics, with case sensitivity and match stepping.
 - **Dark mode by default**, with a one-click switch to light mode (top bar). The whole UI —
   chrome, panels, dialogs, and canvas — follows, and the choice is remembered.
-- **Color themes** — six built-in canvas palettes (Blueprint, Paper, Slate, Meadow, Grape, Mono);
-  each topic can still override its own color. The default palette tracks the dark/light mode.
+- **Color themes** — twelve built-in canvas palettes: Blueprint, Paper, Slate, Meadow, Grape, Mono,
+  plus Vendetta, Strawberry Milk, Phosphor, Outrun, Gilded, and Abyss. Each topic can still override
+  its own color. The default palette tracks the dark/light mode.
 - **Full-screen** view and **print**.
 - **Export** to PNG, JPEG, GIF, BMP, TIFF, SVG, PDF, plain-text outline, CSV, and **FreeMind
   (`.mm`)**. Import `.mm` and native `.json`.

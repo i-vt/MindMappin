@@ -544,6 +544,14 @@ function initInspector() {
     b.addEventListener("click", () => setNoteTab(b.dataset.noteTab))
   );
 
+  // note: Open in a pop-up (mirrors the 📝 badge, from the panel)
+  $("insp-note-open").addEventListener("click", () => {
+    const text = $("insp-note").value;
+    if (text && text.trim()) view.openNote(text);
+    else toast("This topic has no note yet.");
+  });
+  $("insp-note").addEventListener("input", syncNoteOpen);
+
   // progress
   $("insp-prog-on").addEventListener("change", (e) => {
     view.applyToSelected({ progress: e.target.checked ? Number($("insp-prog").value) || 0 : null });
@@ -586,6 +594,11 @@ function setNoteTab(tab) {
   }
 }
 
+function syncNoteOpen() {
+  const btn = $("insp-note-open");
+  if (btn) btn.disabled = !$("insp-note").value.trim();
+}
+
 function refreshInspector(node) {
   const empty = $("insp-empty");
   const body = $("insp-body");
@@ -603,6 +616,7 @@ function refreshInspector(node) {
   $("insp-text").value = node.text || "";
   $("insp-note").value = node.note || "";
   setNoteTab(node.note && node.note.trim() ? "preview" : "write");
+  syncNoteOpen();
   $("insp-link").value = node.link || "";
 
   $("insp-icons")
@@ -644,9 +658,12 @@ function refreshInspector(node) {
     const row = document.createElement("div");
     row.className = "link-item";
     const arrow = l.from === node.id ? "→ " : "← ";
-    const lbl = document.createElement("span");
+    const lbl = document.createElement("button");
+    lbl.type = "button";
     lbl.className = "lt";
+    lbl.title = "Show this connection on the canvas";
     lbl.textContent = arrow + (other ? other.node.text || "(untitled)" : "(missing)");
+    lbl.addEventListener("click", () => view.focusLink(l.from, l.to));
     const labelInput = document.createElement("input");
     labelInput.placeholder = "label";
     labelInput.value = l.label || "";

@@ -80,6 +80,86 @@ export const THEMES = {
     link: "#6E6E6E",
     accent: "#1E1E1E",
   },
+
+  // ---- Added palettes ----
+  vendetta: {
+    name: "Vendetta (dark)", // edgy near-black with crimson
+    canvas: "#130C0C",
+    grid: "#1D1313",
+    node: "#251717",
+    nodeStroke: "#5C2B2B",
+    text: "#F1DCDC",
+    edge: "#9A4040",
+    root: "#D11F2A",
+    rootText: "#FFF1F1",
+    link: "#FF6B6B",
+    accent: "#E5252F",
+  },
+  strawberryMilk: {
+    name: "Strawberry Milk", // soft pastel pink on white
+    canvas: "#FFF1F5",
+    grid: "#FBE0E9",
+    node: "#FFFFFF",
+    nodeStroke: "#F3C2D3",
+    text: "#5A2A3D",
+    edge: "#E7A3BA",
+    root: "#F58BB0",
+    rootText: "#5A2438",
+    link: "#D6336C",
+    accent: "#EC4899",
+  },
+  phosphor: {
+    name: "Phosphor (dark)", // green CRT terminal glow
+    canvas: "#05140A",
+    grid: "#0C2013",
+    node: "#0D2616",
+    nodeStroke: "#1F5C34",
+    text: "#9DFFB8",
+    edge: "#2F8050",
+    root: "#2BE665",
+    rootText: "#04210E",
+    link: "#F5C451",
+    accent: "#39FF77",
+  },
+  outrun: {
+    name: "Outrun (dark)", // synthwave neon — purple, magenta, cyan
+    canvas: "#1A0B2E",
+    grid: "#25123F",
+    node: "#2B1549",
+    nodeStroke: "#6E3BD0",
+    text: "#F3E8FF",
+    edge: "#B14AE0",
+    root: "#FF2E97",
+    rootText: "#2A0716",
+    link: "#2CE5E5",
+    accent: "#FF3DA0",
+  },
+  gilded: {
+    name: "Gilded (dark)", // black & gold, quietly luxurious
+    canvas: "#0E0E0C",
+    grid: "#181711",
+    node: "#1B1914",
+    nodeStroke: "#6E5C2F",
+    text: "#F3E9CE",
+    edge: "#9C8440",
+    root: "#D4AF37",
+    rootText: "#241D06",
+    link: "#EBCB72",
+    accent: "#D4AF37",
+  },
+  abyss: {
+    name: "Abyss (dark)", // deep-ocean navy with a coral spark
+    canvas: "#08131F",
+    grid: "#0E2030",
+    node: "#0F2434",
+    nodeStroke: "#27506B",
+    text: "#CFE6F2",
+    edge: "#3C7196",
+    root: "#1E9FD8",
+    rootText: "#03161F",
+    link: "#FF9E64",
+    accent: "#29B6F6",
+  },
 };
 
 // Per-node fill swatches. Empty string = use the theme's default node fill.

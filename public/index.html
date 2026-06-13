@@ -156,15 +156,18 @@
             <div class="field">
               <div class="field-head">
                 <span class="lbl">Note</span>
-                <span class="md-tabs">
-                  <button type="button" class="md-tab active" data-note-tab="write">Write</button>
-                  <button type="button" class="md-tab" data-note-tab="preview">Preview</button>
+                <span class="note-head-actions">
+                  <span class="md-tabs">
+                    <button type="button" class="md-tab active" data-note-tab="write">Write</button>
+                    <button type="button" class="md-tab" data-note-tab="preview">Preview</button>
+                  </span>
+                  <button type="button" class="md-pop" id="insp-note-open" title="Open note in a pop-up">Open ⤢</button>
                 </span>
               </div>
               <textarea id="insp-note" rows="4"
                 placeholder="Supports Markdown — # headings, **bold**, lists, - [ ] tasks, `code`, tables, links…"></textarea>
               <div id="insp-note-preview" class="md-preview markdown-body" hidden></div>
-              <div class="md-hint">Markdown supported · click the 📝 on a topic to preview it on the canvas</div>
+              <div class="md-hint">Markdown supported · <b>Open ⤢</b> reads it in a pop-up (or click the 📝 on a topic)</div>
             </div>
 
             <label class="field">

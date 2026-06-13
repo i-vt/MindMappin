@@ -107,8 +107,8 @@ button {
 
 #app {
   height: 100vh;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---------- Top bar ---------- */
@@ -371,6 +371,9 @@ button {
   border-bottom: 1px solid var(--border);
   padding: 8px 12px;
 }
+#searchbar[hidden] {
+  display: none;
+}
 #searchbar input[type="text"],
 #searchbar input[type="url"] {
   border: 1px solid var(--border-strong);
@@ -418,8 +421,10 @@ button {
 
 /* ---------- Stage / canvas / inspector ---------- */
 #stage {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 1fr 312px;
+  grid-template-rows: 1fr;
   min-height: 0;
 }
 #canvas {
@@ -427,6 +432,9 @@ button {
   overflow: hidden;
   background: var(--ink-2);
   outline: none;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 .mv-svg {
   width: 100%;
@@ -434,6 +442,8 @@ button {
   display: block;
   cursor: grab;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .mv-svg:active {
   cursor: grabbing;
@@ -446,6 +456,60 @@ button {
 }
 .mv-box {
   transition: stroke 0.1s;
+}
+
+/* Cross-link connections: easy to hover, glow on hover/active, fade the rest */
+.mv-xlink {
+  cursor: pointer;
+}
+.mv-xlink-line,
+.mv-xlink-arrow,
+.mv-xlink-rect,
+.mv-xlink-text,
+.mv-xlink {
+  transition: filter 0.12s ease, opacity 0.12s ease, stroke-width 0.12s ease;
+}
+.mv-links:hover .mv-xlink:not(:hover):not(.is-active),
+.mv-links.mv-has-active .mv-xlink:not(.is-active):not(:hover) {
+  opacity: 0.18;
+}
+.mv-xlink:hover .mv-xlink-line,
+.mv-xlink.is-active .mv-xlink-line {
+  stroke-width: 2.6;
+  filter: drop-shadow(0 0 3px) drop-shadow(0 0 6px);
+}
+.mv-xlink:hover .mv-xlink-arrow,
+.mv-xlink.is-active .mv-xlink-arrow {
+  filter: drop-shadow(0 0 3px) drop-shadow(0 0 5px);
+}
+.mv-xlink:hover .mv-xlink-rect,
+.mv-xlink.is-active .mv-xlink-rect {
+  stroke-width: 1.6;
+  filter: drop-shadow(0 0 4px);
+}
+.mv-xlink-halo {
+  pointer-events: none;
+  animation: mv-halo-in 0.18s ease;
+}
+@keyframes mv-halo-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mv-xlink-line,
+  .mv-xlink-arrow,
+  .mv-xlink-rect,
+  .mv-xlink-text,
+  .mv-xlink {
+    transition: none;
+  }
+  .mv-xlink-halo {
+    animation: none;
+  }
 }
 .mv-editor {
   position: absolute;
@@ -616,10 +680,22 @@ input[type="range"] {
 }
 .link-item .lt {
   flex: 1;
+  min-width: 0;
   font-size: 12.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 2px 2px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.link-item .lt:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 .link-item input {
   flex: 1;
@@ -682,6 +758,29 @@ input[type="range"] {
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
+}
+.note-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.md-pop {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.md-pop:hover {
+  background: var(--panel-hover);
+  border-color: var(--border-strong);
+}
+.md-pop:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .md-hint {
   margin-top: 6px;
@@ -862,7 +961,11 @@ input[type="range"] {
   box-shadow: var(--shadow);
   overflow: hidden;
   transform: translateY(8px) scale(0.985);
-  transition: transform 0.16s ease;
+  transition: transform 0.16s ease, width 0.16s ease, max-height 0.16s ease;
+}
+.mv-note-modal.is-expanded {
+  width: min(1100px, 96vw);
+  max-height: 92vh;
 }
 .mv-note-overlay.is-open .mv-note-modal {
   transform: none;
@@ -882,16 +985,29 @@ input[type="range"] {
   text-transform: uppercase;
   color: var(--text-dim);
 }
+.mv-note-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.mv-note-expand,
 .mv-note-close {
   border: 0;
   background: transparent;
   color: var(--text-dim);
-  font-size: 20px;
   line-height: 1;
   cursor: pointer;
-  padding: 2px 7px;
   border-radius: 6px;
 }
+.mv-note-expand {
+  font-size: 15px;
+  padding: 3px 7px;
+}
+.mv-note-close {
+  font-size: 20px;
+  padding: 2px 7px;
+}
+.mv-note-expand:hover,
 .mv-note-close:hover {
   background: var(--panel-2);
   color: var(--text);

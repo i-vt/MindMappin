@@ -20,6 +20,21 @@ function el(tag, attrs = {}, kids = []) {
   return e;
 }
 
+// Pick dark or light text for a given fill so a node stays readable regardless
+// of the canvas theme (a light per-node colour must not get the theme's light
+// text, and vice-versa). Returns null if the colour can't be parsed.
+function readableInk(hex) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b; // 0–255, perceived brightness
+  return luminance > 150 ? "#16242b" : "#eef3f6";
+}
+
 export class MapView {
   constructor(host, opts = {}) {
     this.host = host;
@@ -32,6 +47,7 @@ export class MapView {
     this.sizeCache = new Map();
     this.lastPos = new Map();
     this.linkMode = false;
+    this.activeLink = null;
     this._editing = false;
     this._buildDOM();
     this._bindEvents();
@@ -62,16 +78,25 @@ export class MapView {
     this.noteOverlay.innerHTML =
       '<div class="mv-note-modal" role="dialog" aria-modal="true" aria-label="Topic note">' +
       '<div class="mv-note-head"><span class="npt">Note</span>' +
-      '<button type="button" class="mv-note-close" aria-label="Close note">×</button></div>' +
+      '<span class="mv-note-actions">' +
+      '<button type="button" class="mv-note-expand" aria-label="Expand" title="Expand">⤢</button>' +
+      '<button type="button" class="mv-note-close" aria-label="Close note" title="Close">×</button>' +
+      "</span></div>" +
       '<div class="mv-note-body markdown-body"></div>' +
       "</div>";
+    this.noteModal = this.noteOverlay.querySelector(".mv-note-modal");
     this.noteBody = this.noteOverlay.querySelector(".mv-note-body");
+    this.noteExpandBtn = this.noteOverlay.querySelector(".mv-note-expand");
     this.noteOverlay.addEventListener("pointerdown", (e) => {
       if (e.target === this.noteOverlay) this._hideNote(); // click outside the card
     });
     this.noteOverlay.querySelector(".mv-note-close").addEventListener("click", (e) => {
       e.stopPropagation();
       this._hideNote();
+    });
+    this.noteExpandBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._toggleNoteExpand();
     });
     this.noteOverlay.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
@@ -81,10 +106,23 @@ export class MapView {
     });
     document.body.append(this.noteOverlay);
   }
+  _toggleNoteExpand(force) {
+    const on = force != null ? force : !this.noteModal.classList.contains("is-expanded");
+    this.noteModal.classList.toggle("is-expanded", on);
+    this.noteExpandBtn.title = on ? "Shrink" : "Expand";
+    this.noteExpandBtn.setAttribute("aria-label", on ? "Shrink" : "Expand");
+    this.noteExpandBtn.textContent = on ? "⤡" : "⤢";
+  }
 
   _bindEvents() {
     this.svg.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
+      // Pressing on a connection should trace it (its click handler), not pan or
+      // deselect the current topic. Keep the svg focused so Esc still clears it.
+      if (e.target.closest && e.target.closest(".mv-xlink")) {
+        this.svg.focus({ preventScroll: true });
+        return;
+      }
       this._panning = true;
       this._draggedPan = false;
       this._panStart = { x: e.clientX, y: e.clientY, vx: this.view.x, vy: this.view.y };
@@ -110,7 +148,10 @@ export class MapView {
       } catch {}
       if (!this._draggedPan) {
         if (this.linkMode) this._cancelLink();
-        else this.select(null);
+        else {
+          this.clearActiveLink();
+          this.select(null);
+        }
       }
     };
     this.svg.addEventListener("pointerup", endPan);
@@ -127,6 +168,14 @@ export class MapView {
     );
 
     this.svg.addEventListener("keydown", (e) => this._onKey(e));
+
+    // Double-clicking the empty background does nothing (node/link dblclicks
+    // stop propagation before reaching here). Prevent the browser's default
+    // double-click action so no stray text selection or layout shift occurs.
+    this.svg.addEventListener("dblclick", (e) => {
+      if (e.target.closest && e.target.closest(".mv-node, .mv-xlink")) return;
+      e.preventDefault();
+    });
 
     this.editor.addEventListener("input", () => {
       this.liveText(this._editId, this.editor.value);
@@ -375,6 +424,7 @@ export class MapView {
   }
 
   select(id) {
+    this.activeLink = null;
     this.selectedId = id;
     this.render();
     this._emitSelect();
@@ -427,6 +477,60 @@ export class MapView {
   }
   linksFor(id) {
     return (this.doc.links || []).filter((l) => l.from === id || l.to === id);
+  }
+
+  // Click a connection to trace it: highlight it, halo both endpoints, fade the
+  // rest, and bring both ends into view. Clicking the same one again clears it.
+  _activateLink(from, to) {
+    const same = this.activeLink && this.activeLink.from === from && this.activeLink.to === to;
+    this.activeLink = same ? null : { from, to };
+    this._redrawLinks();
+    if (!same) this._revealLink(from, to);
+  }
+  focusLink(from, to) {
+    this.activeLink = { from, to };
+    this._redrawLinks();
+    this._revealLink(from, to);
+  }
+  clearActiveLink() {
+    if (!this.activeLink) return;
+    this.activeLink = null;
+    this._redrawLinks();
+  }
+  _redrawLinks() {
+    if (!this.doc) return;
+    this.gLinks.textContent = "";
+    this._renderCrossLinks(this._theme());
+  }
+  _revealLink(from, to) {
+    const a = this.lastPos.get(from);
+    const b = this.lastPos.get(to);
+    if (!a || !b) return;
+    const onScreen = (p) => {
+      const s = this._toScreen(p.x, p.y);
+      const r = this.svg.getBoundingClientRect();
+      const m = 60;
+      return s.x > m && s.x < r.width - m && s.y > m && s.y < r.height - m;
+    };
+    if (onScreen(a) && onScreen(b)) return; // both already visible — don't move
+    const x = Math.min(a.x - a.w / 2, b.x - b.w / 2);
+    const y = Math.min(a.y - a.h / 2, b.y - b.h / 2);
+    this._fitBox({
+      x,
+      y,
+      w: Math.max(a.x + a.w / 2, b.x + b.w / 2) - x,
+      h: Math.max(a.y + a.h / 2, b.y + b.h / 2) - y,
+    });
+  }
+  _fitBox(b, padding = 90) {
+    const r = this.svg.getBoundingClientRect();
+    const sw = r.width || 900;
+    const sh = r.height || 600;
+    const scale = Math.min((sw - 2 * padding) / b.w, (sh - 2 * padding) / b.h, 1.4);
+    this.view.scale = Math.max(0.15, Math.min(scale, 1.4));
+    this.view.x = sw / 2 - (b.x + b.w / 2) * this.view.scale;
+    this.view.y = sh / 2 - (b.y + b.h / 2) * this.view.scale;
+    this._applyTransform();
   }
 
   // ---------- Search & replace ----------
@@ -690,16 +794,41 @@ export class MapView {
       if (!moved) break;
     }
 
+    this.gLinks.classList.toggle("mv-has-active", !!this.activeLink);
+
     for (const it of items) {
       const { link, fb, tb, c } = it;
       const a = edgePoint(fb, c.x, c.y);
       const b = edgePoint(tb, c.x, c.y);
       const ang = Math.atan2(b.y - c.y, b.x - c.x); // curve tangent at the arrow end
+      const curve = `M${a.x},${a.y} Q${c.x},${c.y} ${b.x},${b.y}`;
+      const active =
+        this.activeLink && this.activeLink.from === link.from && this.activeLink.to === link.to;
 
-      const g = el("g", { class: "mv-xlink", style: "cursor:pointer" });
+      // `color` drives the hover/active glow (drop-shadow uses currentColor).
+      const g = el("g", {
+        class: "mv-xlink" + (active ? " is-active" : ""),
+        style: `cursor:pointer;color:${theme.link}`,
+        "data-from": link.from,
+        "data-to": link.to,
+      });
+
+      // Invisible fat path so the thin dashed line is easy to hover and click.
       g.appendChild(
         el("path", {
-          d: `M${a.x},${a.y} Q${c.x},${c.y} ${b.x},${b.y}`,
+          class: "mv-xlink-hit",
+          d: curve,
+          fill: "none",
+          stroke: "transparent",
+          "stroke-width": 16,
+          "stroke-linecap": "round",
+          "pointer-events": "stroke",
+        })
+      );
+      g.appendChild(
+        el("path", {
+          class: "mv-xlink-line",
+          d: curve,
           fill: "none",
           stroke: theme.link,
           "stroke-width": 1.6,
@@ -710,6 +839,7 @@ export class MapView {
       const ah = 7;
       g.appendChild(
         el("path", {
+          class: "mv-xlink-arrow",
           d: `M${b.x},${b.y} L${b.x - ah * Math.cos(ang - 0.4)},${
             b.y - ah * Math.sin(ang - 0.4)
           } L${b.x - ah * Math.cos(ang + 0.4)},${b.y - ah * Math.sin(ang + 0.4)} Z`,
@@ -720,6 +850,7 @@ export class MapView {
         const tw = it.lw != null ? it.lw : this._measure(link.label) + 14;
         g.appendChild(
           el("rect", {
+            class: "mv-xlink-rect",
             x: c.x - tw / 2,
             y: c.y - 9,
             width: tw,
@@ -734,6 +865,7 @@ export class MapView {
           el(
             "text",
             {
+              class: "mv-xlink-text",
               x: c.x,
               y: c.y,
               "font-size": 10.5,
@@ -748,9 +880,37 @@ export class MapView {
       }
       g.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.select(link.from);
+        this._activateLink(link.from, link.to);
       });
       this.gLinks.appendChild(g);
+    }
+
+    // Halo the endpoints of the clicked connection so it's obvious what joins what.
+    if (this.activeLink) {
+      const stillExists = (this.doc.links || []).some(
+        (l) => l.from === this.activeLink.from && l.to === this.activeLink.to
+      );
+      if (stillExists) {
+        for (const id of [this.activeLink.from, this.activeLink.to]) {
+          const p = this.lastPos.get(id);
+          if (!p) continue;
+          this.gLinks.appendChild(
+            el("rect", {
+              class: "mv-xlink-halo",
+              x: p.x - p.w / 2 - 5,
+              y: p.y - p.h / 2 - 5,
+              width: p.w + 10,
+              height: p.h + 10,
+              rx: 13,
+              ry: 13,
+              fill: "none",
+              stroke: theme.link,
+              "stroke-width": 2.5,
+              style: `color:${theme.link};filter:drop-shadow(0 0 5px)`,
+            })
+          );
+        }
+      }
     }
   }
 
@@ -763,7 +923,12 @@ export class MapView {
       const isRoot = id === rootId;
       const fill = isRoot ? theme.root : n.color || theme.node;
       const stroke = isRoot ? theme.root : theme.nodeStroke;
-      const textColor = isRoot ? theme.rootText : theme.text;
+      // Default/root nodes keep the theme's designed text colour; a custom node
+      // colour gets ink chosen for contrast so it can't go light-on-light (or
+      // dark-on-dark) when the theme/mode changes.
+      const textColor = isRoot
+        ? theme.rootText
+        : (n.color && readableInk(n.color)) || theme.text;
       const size = this._size(n);
       const g = el("g", {
         class: "mv-node",
@@ -1016,9 +1181,17 @@ export class MapView {
   }
 
   // ---------- Note modal (rendered markdown) ----------
+  openNote(text) {
+    if (text == null || !String(text).trim()) return;
+    this._openNoteModal(text);
+  }
   _showNote(node) {
     if (!node || !node.note) return;
-    this.noteBody.innerHTML = renderMarkdown(node.note);
+    this._openNoteModal(node.note);
+  }
+  _openNoteModal(text) {
+    this._toggleNoteExpand(false);
+    this.noteBody.innerHTML = renderMarkdown(text);
     this.noteBody.scrollTop = 0;
     this.noteOverlay.hidden = false;
     requestAnimationFrame(() => this.noteOverlay.classList.add("is-open"));
@@ -1147,6 +1320,7 @@ export class MapView {
         break;
       case "Escape":
         this._hideNote();
+        this.clearActiveLink();
         if (this.linkMode) this._cancelLink();
         break;
     }
