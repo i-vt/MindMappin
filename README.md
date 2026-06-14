@@ -6,8 +6,7 @@ zero-dependency vanilla-JS front end. It keeps Blumind's "do one thing well" spi
 things the original never had: it runs in any browser, stores maps server-side, and has a real
 undo/redo history.
 
-<img width="3832" height="1906" alt="image" src="https://github.com/user-attachments/assets/5865adb8-9147-43dd-97bb-81990b73e74b" />
-
+<img width="2542" height="1918" alt="image" src="https://github.com/user-attachments/assets/9d5587ef-9853-4fe6-99c5-99d411a0819f" />
 
 ## Features
 
